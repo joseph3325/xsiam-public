@@ -1,0 +1,185 @@
+commonfields:
+  id: 4ggb71a8-03b0-43ac-82b0-8057ec6836a4
+  version: 7
+vcShouldKeepItemLegacyProdMachine: false
+name: ps-list-to-html
+script: |-
+  from typing import List, Dict, Union
+
+  # CSS styles as constants - Palo Alto Networks branding with modern, sleek design
+  # Email-compatible styling with inline CSS
+  TABLE_CONTAINER_STYLE = "font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 100%; margin: 20px 0; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.1);"
+  TABLE_STYLE = "width: 100%; border-collapse: separate; border-spacing: 0; background-color: #FFFFFF;"
+  TITLE_STYLE = "color: #333333; font-size: 24px; font-weight: 600; margin: 0 0 16px 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;"
+  HEADER_STYLE = "background: linear-gradient(135deg, #FA582D 0%, #FF7A59 100%); color: #FFFFFF; padding: 16px 20px; text-align: left; font-weight: 600; font-size: 14px; text-transform: uppercase; letter-spacing: 0.5px; border: none;"
+  CELL_STYLE = "padding: 14px 20px; border-bottom: 1px solid #E8E8E8; color: #333333; font-size: 14px; line-height: 1.5;"
+  ALT_ROW_STYLE = "background-color: #FAFAFA;"
+  EVEN_ROW_STYLE = "background-color: #FFFFFF;"
+  LAST_ROW_CELL_STYLE = "padding: 14px 20px; border-bottom: none; color: #333333; font-size: 14px; line-height: 1.5;"
+
+
+  def normalize_headers(records: List[Dict], target_headers: List[str]) -> List[Dict]:
+      """
+      Normalize record dictionaries by filtering and renaming keys.
+
+      Args:
+          records: List of dictionaries to normalize
+          target_headers: List of headers, optionally in "old_key:new_key" format
+
+      Returns:
+          List of normalized dictionaries with only specified keys
+      """
+
+      mapping = {}
+      new_header_order = [] # Track the order of the new names
+      for header in target_headers:
+          if ":" in header:
+              original, new = header.split(":", 1)
+              mapping[original] = new
+              new_header_order.append(new)
+          else:
+              mapping[header] = header
+              new_header_order.append(header)
+
+      normalized = []
+      for record in records:
+          # Loop through the mapping to ensure the new dict follows the CSV order
+          new_record = {}
+          for original_key in mapping:
+              if original_key in record:
+                  new_name = mapping[original_key]
+                  new_record[new_name] = record[original_key]
+          normalized.append(new_record)
+
+      return normalized
+
+
+
+
+
+  def table_to_HTML(title: str, t: Union[Dict, List[Dict]], headers: str) -> CommandResults:
+      """
+      Convert a list of dictionaries to a modern, sleek HTML table.
+
+      Uses Palo Alto Networks branding colors (signature orange #FA582D) with
+      email-compatible styling including rounded corners, subtle shadows, and
+      professional typography.
+
+      Args:
+          title: Optional title for the table
+          t: Dictionary or list of dictionaries to convert
+          headers: Comma-separated list of headers, optionally with "old:new" renaming
+
+      Returns:
+          CommandResults with modern HTML table output optimized for email notifications
+      """
+      # Normalize to list
+      if t and not isinstance(t, list):
+          t = [t]
+
+      # Return early if no data
+      if not t:
+          return CommandResults(
+              outputs={'htmlTable': ''},
+              readable_output="Data does not exist"
+          )
+
+      # Normalize headers if specified
+      if headers:
+          header_list = headers.split(',')
+          t = normalize_headers(t, header_list)
+
+      # Return early if normalization resulted in empty data
+      if not t or not t[0]:
+          return CommandResults(
+              outputs={'htmlTable': ''},
+              readable_output="Data does not exist"
+          )
+
+      # Extract headers from first record
+      header_keys = list(t[0].keys())
+
+      # Build HTML using list for efficient string building
+      html_parts = []
+
+      if title:
+          html_parts.append(f'<h3 style="{TITLE_STYLE}">{title}</h3>')
+
+      # Container div for shadow and rounded corners (email-compatible)
+      html_parts.append(f'<div style="{TABLE_CONTAINER_STYLE}">')
+
+      # Table opening and header row
+      html_parts.append(f'<table style="{TABLE_STYLE}"><tr>')
+      html_parts.extend(f'<th style="{HEADER_STYLE}">{h}</th>' for h in header_keys)
+      html_parts.append('</tr>')
+
+      # Data rows with alternating colors - use enumerate for O(n) performance
+      total_rows = len(t)
+      for idx, entry in enumerate(t):
+          # Alternate row colors for better readability
+          row_bg_style = ALT_ROW_STYLE if idx % 2 == 0 else EVEN_ROW_STYLE
+          html_parts.append(f'<tr style="{row_bg_style}">')
+
+          # Use different cell style for last row to remove bottom border
+          cell_style = LAST_ROW_CELL_STYLE if idx == total_rows - 1 else CELL_STYLE
+          html_parts.extend(f'<td style="{cell_style}">{v}</td>' for v in entry.values())
+          html_parts.append('</tr>')
+
+      html_parts.append('</table>')
+      html_parts.append('</div>')
+
+      html_results = ''.join(html_parts)
+      readable = tableToMarkdown(name=title, t=t, headers=header_keys)
+
+      return CommandResults(
+          outputs={'htmlTable': html_results},
+          readable_output=readable
+      )
+
+
+  def main():
+      args = demisto.args()
+      title = args.get('title')
+      table = args.get('table')
+      headers = args.get('headers')
+
+      try:
+          return_results(table_to_HTML(title, table, headers))
+      except Exception as e:
+          demisto.error(traceback.format_exc())
+          return_error(f"Failed to execute ps-list-to-html command. Error: {str(e)}")
+
+
+  if __name__ in ('__main__', '__builtin__', 'builtins'):
+      main()
+type: python
+tags:
+- Utility
+comment: Converts a given array to an HTML table
+enabled: true
+args:
+- supportedModules: []
+  name: table
+  required: true
+  default: true
+  description: The table to convert to HTML
+  isArray: true
+- supportedModules: []
+  name: title
+  description: The optional title for the table
+- supportedModules: []
+  name: headers
+  description: 'A comma separated list of headers for each object (the keys).  If
+    you want to map a header to a human readable value, the header can be provided
+    in the format "original_header:humanReadable" where the value after the colon
+    is set as the header. '
+outputs:
+- contextPath: htmlTable
+scripttarget: 0
+subtype: python3
+pswd: ""
+runonce: false
+dockerimage: demisto/python3:3.10.8.36650
+runas: DBotWeakRole
+engineinfo: {}
+mainengineinfo: {}
