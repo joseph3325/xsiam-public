@@ -1,0 +1,69 @@
+commonfields:
+  id: caab0494-7777-4bcf-8c64-1c84ee720b94
+  version: 17
+vcShouldKeepItemLegacyProdMachine: false
+name: jp-get-playbook-by-name
+script: |-
+  register_module_line('jp-get-playbook-by-name', 'start', __line__())
+
+
+  def get_playbooks(name: str, using: str) -> list[dict]:
+      """
+      This function calls the target endpoint and returns the playbook requested
+      If no matches are found the script will return No Entries
+      """
+      endpoint = '/xsoar/public/v1/playbook/search'
+      query = f'name:"{name}"'
+
+      body = {"query": query}
+
+
+      r = execute_command("core-api-post", {"uri": endpoint, "using": using, "body": body})
+
+      try:
+          playbooks = r['response']['playbooks']
+          result = [{'name': x['name'], 'id': x['id']} for x in playbooks]
+          return result
+      except Exception as e:
+          return_error(f'Failed to retrieve playbooks.\nResponse: {r}')
+
+
+  def main():
+      core_instance = demisto.args()['coreInstance']
+      playbook_name = demisto.args()['playbookName']
+      target_playbook = get_playbooks(playbook_name, core_instance)
+
+      return_results(CommandResults(
+          readable_output=tableToMarkdown(name='Playbook Details', t=target_playbook, headers=['name', 'id']),
+          outputs_prefix='Playbook',
+          outputs=target_playbook
+      ))
+
+  if __name__ == "__builtin__" or __name__ == "builtins":
+      main()
+
+  register_module_line('jp-get-playbook-by-name', 'end', __line__())
+type: python
+tags: []
+comment: 'This automation will return the playbook name and ID based on a provided
+  name filter. '
+enabled: true
+args:
+- supportedModules: []
+  name: coreInstance
+  description: The Core REST API instance to use
+  defaultValue: JP-RestInstance
+- supportedModules: []
+  name: playbookName
+  required: true
+  description: The name of the target playbook
+outputs:
+- contextPath: Playbook
+scripttarget: 0
+subtype: python3
+pswd: ""
+runonce: false
+dockerimage: demisto/python3:3.12.12.6796194
+runas: DBotWeakRole
+engineinfo: {}
+mainengineinfo: {}
