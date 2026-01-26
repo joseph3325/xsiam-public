@@ -1,0 +1,172 @@
+commonfields:
+  id: 5hhc82b9-04c1-54bd-93c1-9168fd7947b5
+  version: 1
+vcShouldKeepItemLegacyProdMachine: false
+name: ps-list-to-markdown
+script: |-
+  from typing import List, Dict, Union
+
+
+  def normalize_headers(records: List[Dict], target_headers: List[str]) -> List[Dict]:
+      """
+      Normalize record dictionaries by filtering and renaming keys.
+
+      Args:
+          records: List of dictionaries to normalize
+          target_headers: List of headers, optionally in "old_key:new_key" format
+
+      Returns:
+          List of normalized dictionaries with only specified keys
+      """
+      # Build mapping of original_key -> new_key
+      mapping = {}
+      for header in target_headers:
+          if ":" in header:
+              original, new = header.split(":", 1)
+              mapping[original] = new
+          else:
+              mapping[header] = header
+
+      # Process each record against the mapping
+      normalized = []
+      for record in records:
+          new_record = {mapping[k]: v for k, v in record.items() if k in mapping}
+          normalized.append(new_record)
+
+      return normalized
+
+
+  def escape_markdown(text: str) -> str:
+      """
+      Escape special characters in markdown table cells.
+
+      Args:
+          text: Text to escape
+
+      Returns:
+          Escaped text safe for markdown tables
+      """
+      if text is None:
+          return ""
+
+      text = str(text)
+      # Replace pipe characters that would break table structure
+      text = text.replace("|", "\\|")
+      # Replace newlines with HTML line breaks for compatibility
+      text = text.replace("\n", "<br>")
+      return text
+
+
+  def table_to_markdown(title: str, t: Union[Dict, List[Dict]], headers: str) -> CommandResults:
+      """
+      Convert a list of dictionaries to a Markdown table compatible with XSIAM.
+
+      Creates GitHub-flavored Markdown tables with optional header renaming
+      and data normalization.
+
+      Args:
+          title: Optional title for the table (rendered as heading)
+          t: Dictionary or list of dictionaries to convert
+          headers: Comma-separated list of headers, optionally with "old:new" renaming
+
+      Returns:
+          CommandResults with Markdown table output
+      """
+      # Normalize to list
+      if t and not isinstance(t, list):
+          t = [t]
+
+      # Return early if no data
+      if not t:
+          return CommandResults(
+              outputs={'markdownTable': ''},
+              readable_output="Data does not exist"
+          )
+
+      # Normalize headers if specified
+      if headers:
+          header_list = headers.split(',')
+          t = normalize_headers(t, header_list)
+
+      # Return early if normalization resulted in empty data
+      if not t or not t[0]:
+          return CommandResults(
+              outputs={'markdownTable': ''},
+              readable_output="Data does not exist"
+          )
+
+      # Extract headers from first record
+      header_keys = list(t[0].keys())
+
+      # Build Markdown table using list for efficient string building
+      md_parts = []
+
+      # Add title if provided
+      if title:
+          md_parts.append(f"### {title}\n\n")
+
+      # Create header row
+      md_parts.append("| " + " | ".join(header_keys) + " |\n")
+
+      # Create separator row
+      md_parts.append("| " + " | ".join(["---"] * len(header_keys)) + " |\n")
+
+      # Add data rows
+      for entry in t:
+          row_values = [escape_markdown(entry.get(key, "")) for key in header_keys]
+          md_parts.append("| " + " | ".join(row_values) + " |\n")
+
+      markdown_results = ''.join(md_parts)
+
+      return CommandResults(
+          outputs={'markdownTable': markdown_results},
+          readable_output=markdown_results
+      )
+
+
+  def main():
+      args = demisto.args()
+      title = args.get('title')
+      table = args.get('table')
+      headers = args.get('headers')
+
+      try:
+          return_results(table_to_markdown(title, table, headers))
+      except Exception as e:
+          demisto.error(traceback.format_exc())
+          return_error(f"Failed to execute ps-list-to-markdown command. Error: {str(e)}")
+
+
+  if __name__ in ('__main__', '__builtin__', 'builtins'):
+      main()
+type: python
+tags:
+- Utility
+comment: Converts a given array to a Markdown table compatible with XSIAM
+enabled: true
+args:
+- supportedModules: []
+  name: table
+  required: true
+  default: true
+  description: The table to convert to Markdown
+  isArray: true
+- supportedModules: []
+  name: title
+  description: The optional title for the table (rendered as Markdown heading)
+- supportedModules: []
+  name: headers
+  description: 'A comma separated list of headers for each object (the keys). If
+    you want to map a header to a human readable value, the header can be provided
+    in the format "original_header:humanReadable" where the value after the colon
+    is set as the header. '
+outputs:
+- contextPath: markdownTable
+scripttarget: 0
+subtype: python3
+pswd: ""
+runonce: false
+dockerimage: demisto/python3:3.10.8.36650
+runas: DBotWeakRole
+engineinfo: {}
+mainengineinfo: {}

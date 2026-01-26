@@ -1,0 +1,127 @@
+# Claude Code
+CLAUDE.md
+.claude/
+
+# IDE and Editor files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.project
+.settings/
+.classpath
+*.sublime-project
+*.sublime-workspace
+
+# Python
+.venv/
+venv/
+env/
+.env/
+ENV/
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+.python-version
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Secrets and credentials - CRITICAL
+.env
+.env.*
+*.env
+.envrc
+*.key
+*.pem
+*.p12
+*.pfx
+*.crt
+*.cer
+credentials*
+secrets*
+*_secret*
+*_token*
+api_key*
+apikey*
+*.credentials
+config.local.*
+*.local.yml
+*.local.yaml
+*.local.json
+
+# OS files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# Logs and temp files
+*.log
+*.tmp
+*.temp
+*.bak
+*.backup
+*.cache
+.cache/
+logs/
+tmp/
+temp/
+
+# Test and coverage
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+.pytest_cache/
+.mypy_cache/
+.hypothesis/
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+
+# XSIAM/Security specific exclusions
+# Instance-specific configurations
+instance_config*
+tenant_config*
+*_instance.*
+
+# Test data that might contain sensitive information
+test_data/
+sample_data/
+mock_data/
+
+# Export files that might contain sensitive data
+exports/
+*.xsiam_export
+*.demisto_export
+
+# Any local notes or documentation with sensitive info
+notes.md
+TODO.md
+NOTES.txt
+*.private.*
