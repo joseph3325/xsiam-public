@@ -1,0 +1,52 @@
+commonfields:
+  id: 4cf2bb3a-77ed-43dc-8b4b-c1047b0655dd
+  version: 14
+vcShouldKeepItemLegacyProdMachine: false
+name: jp-get-case-url
+script: |-
+  register_module_line('jp-get-case-url', 'start', __line__())
+
+  def get_base_url():
+      # returns the url in this format: "https://<sub-domain>.xdr.us.paloaltonetworks.com"
+      return execute_command("GetServerURL", {})
+
+  def get_case_id():
+      case_id = demisto.alert()['parentXDRIncident']
+      return case_id.split('-')[-1]
+
+
+  def main():
+      base_url = get_base_url()
+      case_id = get_case_id()
+      case_url = f'{base_url}/case?caseId={case_id}'
+      return_results(
+          CommandResults(
+              outputs={'caseURL': case_url},
+              readable_output=f'### [Case: {case_id}]({case_url})'
+          )
+      )
+
+
+
+  if __name__ in ('__main__', '__builtin__', 'builtins'):
+      main()
+
+
+
+  register_module_line('jp-get-case-url', 'end', __line__())
+type: python
+tags: []
+comment: Generates the direct URL to the parent case.
+enabled: true
+outputs:
+- contextPath: caseURL
+scripttarget: 0
+subtype: python3
+pswd: ""
+runonce: false
+dockerimage: demisto/python3:3.12.12.6947692
+runas: DBotWeakRole
+engineinfo: {}
+mainengineinfo: {}
+restrictioncenter: {}
+signature: ""
