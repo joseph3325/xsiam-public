@@ -1,0 +1,78 @@
+commonfields:
+  id: jp-2f22-4540-8755-b8677c5ffca4
+  version: 7
+vcShouldKeepItemLegacyProdMachine: false
+name: jp-gpds-get-related-host-issues
+script: |+
+  def normalize_severity(sev):
+      if sev == 0.5: sev = 'Informational'
+      elif sev == 1: sev = 'Low'
+      elif sev == 2: sev = 'Medium'
+      elif sev == 3: sev = 'High'
+      elif sev == 4: sev = 'Critical'
+      return sev
+
+
+  # get current issue
+  issue = demisto.alert()
+
+  try:
+      agentid = issue.get('CustomFields', {}).get('agentid')
+
+  except: agentid = None
+  print()
+  if agentid:
+      # search for target hosts
+      command_args = {
+          'query': f'agentid:"{agentid}"'
+      }
+      r = execute_command("getAlerts", command_args)
+      r = r.get('data')
+
+      if r:
+          target_headers = ['created', 'id', 'severity', 'parentXDRIncident', 'name', 'resolution_status', 'agentid']
+          results = []
+          for i in r:
+              tmp = {}
+              try:
+                  cf = i.pop('CustomFields')
+                  i.update(cf)
+              except: pass
+
+              for k, v in i.items():
+                  if k in target_headers:
+                      if k == 'severity': v = normalize_severity(v)
+                      tmp[k] = v
+
+              results.append(tmp)
+
+          if len(results) > 24:
+              total_issues = len(results)
+              results = results[:25]
+              nombre = f'Issues Impacting {agentid} (Limited to 25, {total_issues - 25} Hidden)'
+          else:
+              nombre = f'Issues Impacting {agentid}'
+          md = tableToMarkdown(name=nombre, t=results, headers=target_headers)
+
+      else: md = f'### No Related Issues Found for agentid: {agentid}'
+
+  else: md = '### No Impacted Host Found'
+
+  return_results(CommandResults(readable_output=md))
+
+
+
+type: python
+tags:
+- dynamic-section
+comment: This dynamic section will query issues to find others with the same impacted
+  host
+enabled: true
+scripttarget: 0
+subtype: python3
+pswd: ""
+runonce: false
+dockerimage: demisto/python3:3.12.12.6922358
+runas: DBotWeakRole
+engineinfo: {}
+mainengineinfo: {}
