@@ -1,0 +1,78 @@
+commonfields:
+  id: jp-9323-4179-8099-87e1e15c9938
+  version: 13
+vcShouldKeepItemLegacyProdMachine: false
+name: jp-gpds-get-related-user-issues
+script: |+
+  def normalize_severity(sev):
+      if sev == 0.5: sev = 'Informational'
+      elif sev == 1: sev = 'Low'
+      elif sev == 2: sev = 'Medium'
+      elif sev == 3: sev = 'High'
+      elif sev == 4: sev = 'Critical'
+      return sev
+
+
+  # get current issue
+  issue = demisto.alert()
+
+  try:
+      user = issue.get('CustomFields', {}).get('username')
+      if user: user = user[0]
+  except: user = None
+
+  if user:
+      # search for target users
+      command_args = {
+          'query': f'username:"{user}"'
+      }
+      r = execute_command("getAlerts", command_args)
+      r = r.get('data')
+
+      if r:
+          target_headers = ['created', 'id', 'severity', 'parentXDRIncident', 'name', 'resolution_status']
+          results = []
+          for i in r:
+              tmp = {}
+              try:
+                  cf = i.pop('CustomFields')
+                  i.update(cf)
+              except: pass
+
+              for k, v in i.items():
+                  if k in target_headers:
+                      if k == 'severity': v = normalize_severity(v)
+                      tmp[k] = v
+
+              results.append(tmp)
+
+          if len(results) > 24:
+              total_issues = len(results)
+              results = results[:25]
+              nombre = f'Issues Impacting {user} (Limited to 25, {total_issues - 25} Hidden)'
+          else:
+              nombre = f'Issues Impacting {user}'
+          md = tableToMarkdown(name=nombre, t=results, headers=target_headers)
+
+      else: md = f'### No Related Issues Found for User: {user}'
+
+  else: md = '### No Impacted User Found'
+
+  return_results(CommandResults(readable_output=md))
+
+
+
+type: python
+tags:
+- dynamic-section
+comment: This dynamic section will query issues to find others with the same impacted
+  user
+enabled: true
+scripttarget: 0
+subtype: python3
+pswd: ""
+runonce: false
+dockerimage: demisto/python3:3.12.12.6922358
+runas: DBotWeakRole
+engineinfo: {}
+mainengineinfo: {}
