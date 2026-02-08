@@ -1,0 +1,25 @@
+[project]
+name = "xsiam-public"
+version = "0.1.0"
+description = "Example content and utilities for the Palo Alto Networks XSIAM platform"
+requires-python = ">=3.10"
+
+[tool.ruff]
+target-version = "py310"
+line-length = 120
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "B",   # flake8-bugbear
+    "UP",  # pyupgrade
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.yamllint]
+extends = "default"
