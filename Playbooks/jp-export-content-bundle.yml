@@ -1,5 +1,5 @@
 id: jp-4c02-4d4b-889e-9f1e1babc0d3
-version: 12
+version: 13
 vcShouldKeepItemLegacyProdMachine: false
 name: JP - XSIAM Export Content Bundle
 tags:
@@ -106,92 +106,6 @@ tasks:
         "position": {
           "x": 450,
           "y": 360
-        }
-      }
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
-  "6":
-    id: "6"
-    taskid: 4724641b-9ba4-4498-80ae-fa06a5162ada
-    type: regular
-    task:
-      id: 4724641b-9ba4-4498-80ae-fa06a5162ada
-      version: -1
-      name: Alert team the playbook is complete
-      description: Sends an email.
-      script: EWSO365|||send-mail
-      type: regular
-      iscommand: true
-      brand: EWSO365
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    scriptarguments:
-      cc:
-        simple: sjafri2@schools.nyc.gov,azheng6@schools.nyc.gov,jplunkett@paloaltonetworks.com,${teamMembers}
-      htmlBody:
-        simple: "Hello, \n\nBelow are the results for the XSOAR Credential Reset <a
-          href=\"https://02019531897.dev.xsoar.paloaltonetworks.com/#/Custom/dy3xzxurvo/${incident.id}\">Incident
-          ${incident.id}</a>\n\n\n${htmlTable}"
-      subject:
-        simple: 'Credential Reset Complete | XSOAR Incident: ${incident.id}'
-      to:
-        simple: ${incident.owner}
-      using:
-        simple: EWSO365_schools.nyc.gov
-    separatecontext: false
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": {
-          "x": 620,
-          "y": 4135
-        }
-      }
-    note: false
-    timertriggers: []
-    ignoreworker: false
-    skipunavailable: false
-    quietmode: 0
-    isoversize: false
-    isautoswitchedtoquietmode: false
-  "7":
-    id: "7"
-    taskid: 21bf4363-bf4a-448b-8e22-9f6619b67558
-    type: regular
-    task:
-      id: 21bf4363-bf4a-448b-8e22-9f6619b67558
-      version: -1
-      name: Convert results to HTML table
-      description: Converts a given array to an HTML table
-      script: ListToHTML_v3
-      type: regular
-      iscommand: false
-      brand: ""
-      playbooktaskmissingcomponent: null
-      istaskmissingcomponenterrordismissed: false
-    nexttasks:
-      '#none#':
-      - "6"
-    scriptarguments:
-      headers:
-        simple: userid,userEmail,IBM,GSuite,Graph
-      table:
-        complex:
-          root: resetResult
-      title:
-        simple: Credential Reset Result
-    separatecontext: false
-    continueonerrortype: ""
-    view: |-
-      {
-        "position": {
-          "x": 620,
-          "y": 3970
         }
       }
     note: false
@@ -490,7 +404,7 @@ view: |-
     "linkLabelsPosition": {},
     "paper": {
       "dimensions": {
-        "height": 3990,
+        "height": 1120,
         "width": 660,
         "x": 450,
         "y": 220
