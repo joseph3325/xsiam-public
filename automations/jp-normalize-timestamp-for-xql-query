@@ -1,0 +1,192 @@
+commonfields:
+  id: BuildNormalizedDateString
+  version: 5
+vcShouldKeepItemLegacyProdMachine: false
+name: jp-normalize-timestamp-for-xql-query
+script: |2-
+
+
+  import re
+  from datetime import datetime, timedelta, timezone
+
+
+  def normalize_fractional_seconds(timestamp_str: str) -> str:
+      """
+      Truncate fractional seconds to 6 digits (microseconds) so that
+      Python's strptime %f can handle them. Timestamps from sources like
+      Linux or Go may have nanosecond precision (9+ digits).
+
+      Args:
+          timestamp_str: The raw timestamp string.
+
+      Returns:
+          str: The timestamp with fractional seconds truncated to 6 digits.
+      """
+      pattern = r'(\.\d{7,})(Z|[+-]\d{2}:?\d{2})?'
+      match = re.search(pattern, timestamp_str)
+      if match:
+          frac = match.group(1)[:7]  # keep dot + 6 digits
+          tz_suffix = match.group(2) or ''
+          timestamp_str = timestamp_str[:match.start()] + frac + tz_suffix
+      return timestamp_str
+
+
+  def parse_timestamp(timestamp_str: str) -> datetime:
+      """
+      Parse an input timestamp string into a timezone-aware datetime object.
+
+      Handles nanosecond precision by truncating to microseconds.
+      If no timezone info is present, assumes UTC.
+
+      Args:
+          timestamp_str: The timestamp string to parse.
+
+      Returns:
+          datetime: A timezone-aware datetime object.
+
+      Raises:
+          ValueError: If the timestamp cannot be parsed.
+      """
+      cleaned = normalize_fractional_seconds(timestamp_str.strip())
+
+      # Replace trailing Z with +0000 for consistent parsing
+      if cleaned.endswith('Z'):
+          cleaned = cleaned[:-1] + '+0000'
+
+      formats = [
+          '%Y-%m-%dT%H:%M:%S.%f%z',
+          '%Y-%m-%dT%H:%M:%S%z',
+          '%Y-%m-%dT%H:%M:%S.%f',
+          '%Y-%m-%dT%H:%M:%S',
+          '%Y-%m-%d %H:%M:%S.%f%z',
+          '%Y-%m-%d %H:%M:%S%z',
+          '%Y-%m-%d %H:%M:%S.%f',
+          '%Y-%m-%d %H:%M:%S',
+          '%Y-%m-%d',
+      ]
+
+      for fmt in formats:
+          try:
+              dt = datetime.strptime(cleaned, fmt)
+              if dt.tzinfo is None:
+                  dt = dt.replace(tzinfo=timezone.utc)
+              return dt
+          except ValueError:
+              continue
+
+      raise ValueError(f'Unable to parse timestamp: {timestamp_str}')
+
+
+  def format_timestamp(dt: datetime) -> str:
+      """
+      Format a datetime object into the normalized string format.
+
+      Output format: "2026-02-23 15:30:23 -05:00"
+
+      Args:
+          dt: The datetime object to format.
+
+      Returns:
+          str: The formatted timestamp string.
+      """
+      utc_offset = dt.strftime('%z')  # e.g. "-0500" or "+0000"
+      formatted_offset = f'{utc_offset[:3]}:{utc_offset[3:]}'
+      return dt.strftime(f'%Y-%m-%d %H:%M:%S {formatted_offset}')
+
+
+  def build_normalized_date_string(timestamp_str: str, time_window_minutes: int) -> str:
+      """
+      Build a normalized timeframe config string from an initial timestamp and time window.
+
+      Creates two timestamps:
+        - timestamp1: initial_timestamp minus 30 minutes
+        - timestamp2: initial_timestamp plus the provided time_window (in minutes)
+
+      Args:
+          timestamp_str: The initial timestamp string.
+          time_window_minutes: The time window offset in minutes.
+
+      Returns:
+          str: A config timeframe string in the format:
+               config timeframe between "{ts1}" and "{ts2}"
+      """
+      initial_dt = parse_timestamp(timestamp_str)
+
+      ts1 = initial_dt - timedelta(minutes=30)
+      ts2 = initial_dt + timedelta(minutes=time_window_minutes)
+
+      formatted_ts1 = format_timestamp(ts1)
+      formatted_ts2 = format_timestamp(ts2)
+
+      return f'config timeframe between "{formatted_ts1}" and "{formatted_ts2}"'
+
+
+  def main():
+      try:
+          args = demisto.args()
+
+          timestamp_str = args.get('timestamp')
+          if not timestamp_str:
+              raise ValueError('The "timestamp" argument is required.')
+
+          time_window_str = args.get('time_window')
+          if not time_window_str:
+              raise ValueError('The "time_window" argument is required.')
+
+          try:
+              time_window_minutes = int(time_window_str)
+          except (ValueError, TypeError):
+              raise ValueError(f'Invalid time_window value: "{time_window_str}". Must be an integer (minutes).')
+
+          if time_window_minutes < 0:
+              raise ValueError(f'time_window must be a non-negative integer, got: {time_window_minutes}')
+
+          result = build_normalized_date_string(timestamp_str, time_window_minutes)
+
+          return_results(CommandResults(
+              readable_output=f'### Normalized Timeframe\n{result}',
+              outputs_prefix='NormalizedDate',
+              outputs_key_field='timeframe',
+              outputs={'timeframe': result}
+          ))
+
+      except Exception as e:
+          return_error(f'Failed to execute BuildNormalizedDateString. Error: {str(e)}')
+
+
+  if __name__ in ('__main__', '__builtin__', 'builtins'):
+      main()
+type: python
+tags:
+- Utility
+comment: |
+  Builds a normalized XQL config timeframe string from an initial timestamp and a time window.
+  Creates two timestamps: 30 minutes before the initial timestamp, and the initial timestamp
+  offset by the provided time window (in minutes). Returns a formatted config timeframe string.
+  Handles nanosecond-precision timestamps from sources like Linux or Go.
+enabled: true
+args:
+- supportedModules: []
+  name: timestamp
+  required: true
+  description: The initial timestamp to use as the base reference (e.g. "2023-10-24T18:12:51.067702816Z",
+    "2026-02-23 16:00:00 -05:00").
+- supportedModules: []
+  name: time_window
+  required: true
+  description: The time window offset in minutes to add to the initial timestamp for
+    the end of the range.
+outputs:
+- contextPath: NormalizedDate.timeframe
+  description: The normalized config timeframe string.
+  type: string
+scripttarget: 0
+subtype: python3
+pswd: ""
+runonce: false
+dockerimage: demisto/python3:3.10.14.100715
+runas: DBotWeakRole
+engineinfo: {}
+mainengineinfo: {}
+restrictioncenter: {}
+signature: ""
