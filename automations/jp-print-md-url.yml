@@ -1,0 +1,49 @@
+commonfields:
+  id: efe75335-02e8-4a13-8d0d-9cc199106808
+  version: 5
+vcShouldKeepItemLegacyProdMachine: false
+name: ps-print-markdown-url
+script: |+
+  register_module_line('ps-print-markdown-url', 'start', __line__())
+
+  def main():
+      url = demisto.args()['url']
+      text = demisto.args()['text']
+
+      clickable_string = f'[{text}]({url})'
+
+      return_results(
+          CommandResults(
+              readable_output=clickable_string,
+              mark_as_note=True
+          )
+      )
+
+
+  if __name__ == "__builtin__" or __name__ == "builtins":
+      main()
+
+  register_module_line('ps-print-markdown-url', 'end', __line__())
+
+
+type: python
+tags: []
+comment: A simple automation to log a clickable URL
+enabled: true
+args:
+- supportedModules: []
+  name: url
+  description: The URL to be embedded
+- supportedModules: []
+  name: text
+  description: The text to hyperlink
+scripttarget: 0
+subtype: python3
+pswd: ""
+runonce: false
+dockerimage: demisto/python3:3.12.12.7048537
+runas: DBotWeakRole
+engineinfo: {}
+mainengineinfo: {}
+restrictioncenter: {}
+signature: ""
