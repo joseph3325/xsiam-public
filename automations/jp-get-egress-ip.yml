@@ -1,0 +1,140 @@
+commonfields:
+  id: GetEgressIP
+  version: 4
+vcShouldKeepItemLegacyProdMachine: false
+name: jp-get-egress-ip
+script: |-
+  register_module_line('jp-get-egress-ip', 'start', __line__())
+
+  import urllib.request
+  import json
+
+
+  SERVICES = [
+      ('https://api.ipify.org?format=json', 'json', 'ip'),
+      ('https://checkip.amazonaws.com', 'text', None),
+      ('https://ifconfig.me/ip', 'text', None),
+      ('https://icanhazip.com', 'text', None),
+  ]
+
+  DEFAULT_TIMEOUT = 10
+
+
+  def query_service(url: str, fmt: str, key: str | None, timeout: int) -> str | None:
+      """Query a single IP-echo service and return the IP string or None."""
+      try:
+          req = urllib.request.Request(url, headers={'User-Agent': 'XSIAM-EgressCheck/1.0'})
+          with urllib.request.urlopen(req, timeout=timeout) as resp:
+              body = resp.read().decode('utf-8').strip()
+              if fmt == 'json':
+                  return json.loads(body).get(key, '').strip()
+              return body
+      except Exception as e:
+          demisto.debug(f'GetEgressIP: service {url} failed: {e}')
+          return None
+
+
+  def is_valid_ip(value: str) -> bool:
+      """Basic validation that the response looks like an IPv4 or IPv6 address."""
+      import ipaddress
+      try:
+          ipaddress.ip_address(value)
+          return True
+      except ValueError:
+          return False
+
+
+  def detect_egress_ip(timeout: int) -> dict:
+      """Query multiple services and return the consensus egress IP."""
+      results = []
+      for url, fmt, key in SERVICES:
+          ip = query_service(url, fmt, key, timeout)
+          if ip and is_valid_ip(ip):
+              results.append({'service': url, 'ip': ip})
+
+      if not results:
+          raise DemistoException(
+              'All IP detection services failed. The instance may not have '
+              'outbound internet access or all services are unreachable.'
+          )
+
+      # Determine consensus — the IP returned by the majority of services
+      ip_counts: dict[str, int] = {}
+      for r in results:
+          ip_counts[r['ip']] = ip_counts.get(r['ip'], 0) + 1
+
+      consensus_ip = max(ip_counts, key=ip_counts.get)
+      agreeing = ip_counts[consensus_ip]
+      total = len(results)
+
+      return {
+          'IP': consensus_ip,
+          'Consensus': f'{agreeing}/{total}',
+          'Services': results,
+      }
+
+
+  def main():
+      try:
+          args = demisto.args()
+          timeout = arg_to_number(args.get('timeout'), arg_name='timeout', required=False) or DEFAULT_TIMEOUT
+
+          data = detect_egress_ip(timeout)
+
+          md_rows = [{'Service': s['service'], 'IP': s['ip']} for s in data['Services']]
+          md = tableToMarkdown(
+              f'XSIAM Egress IP: {data["IP"]}',
+              md_rows,
+              headers=['Service', 'IP'],
+          )
+          md += f'\n**Consensus:** {data["Consensus"]} services agree'
+
+          return_results(CommandResults(
+              readable_output=md,
+              outputs_prefix='EgressIP',
+              outputs_key_field='IP',
+              outputs=data,
+          ))
+
+      except Exception as e:
+          return_error(f'Failed to detect egress IP: {str(e)}')
+
+
+  if __name__ in ('__main__', '__builtin__', 'builtins'):
+      main()
+
+  register_module_line('jp-get-egress-ip', 'end', __line__())
+type: python
+tags:
+- Utility
+comment: |
+  Detects the egress (outbound) IP address of the XSIAM instance by querying
+  multiple external IP-echo services and returning the consensus result.
+  Useful for firewall allowlisting, verifying proxy configuration, and
+  troubleshooting outbound connectivity.
+enabled: true
+args:
+- supportedModules: []
+  name: timeout
+  description: HTTP timeout in seconds for each service query
+  defaultValue: "10"
+outputs:
+- contextPath: EgressIP.IP
+  description: The detected egress IP address
+  type: string
+- contextPath: EgressIP.Consensus
+  description: How many services agreed on the IP (e.g. "4/4")
+  type: string
+- contextPath: EgressIP.Services
+  description: List of services queried with their individual results
+  type: array
+scripttarget: 0
+subtype: python3
+pswd: ""
+runonce: false
+dockerimage: demisto/python3:3.12.12.6947692
+runas: DBotWeakRole
+engineinfo: {}
+mainengineinfo: {}
+restrictioncenter: {}
+signature: ""
