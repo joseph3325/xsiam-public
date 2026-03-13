@@ -1,58 +1,48 @@
 commonfields:
-  id: jp-2f22-4540-8755-b8677c5ffca4
-  version: 7
+  id: jp-gpds-get-related-host-issues
+  version: 10
 vcShouldKeepItemLegacyProdMachine: false
 name: jp-gpds-get-related-host-issues
 script: |+
-  def normalize_severity(sev):
-      if sev == 0.5: sev = 'Informational'
-      elif sev == 1: sev = 'Low'
-      elif sev == 2: sev = 'Medium'
-      elif sev == 3: sev = 'High'
-      elif sev == 4: sev = 'Critical'
-      return sev
+  SEVERITY_MAP = {
+      0.5: 'Informational',
+      1: 'Low',
+      2: 'Medium',
+      3: 'High',
+      4: 'Critical',
+  }
+
+  TARGET_HEADERS = ['created', 'id', 'severity', 'parentXDRIncident', 'name', 'resolution_status', 'agentid']
+  MAX_DISPLAY = 25
 
 
-  # get current issue
-  issue = demisto.alert()
-
-  try:
-      agentid = issue.get('CustomFields', {}).get('agentid')
-
-  except: agentid = None
-  print()
+  agentid = demisto.alert().get('CustomFields', {}).get('agentid')
   if agentid:
       # search for target hosts
       command_args = {
           'query': f'agentid:"{agentid}"'
       }
       r = execute_command("getAlerts", command_args)
-      r = r.get('data')
+      data = r.get('data')
 
-      if r:
-          target_headers = ['created', 'id', 'severity', 'parentXDRIncident', 'name', 'resolution_status', 'agentid']
+      if data:
           results = []
-          for i in r:
-              tmp = {}
-              try:
-                  cf = i.pop('CustomFields')
-                  i.update(cf)
-              except: pass
+          for alert in data:
+              fields = dict(alert, **alert.get('CustomFields', {}))
+              row = {}
+              for key in TARGET_HEADERS:
+                  if key in fields:
+                      value = fields[key]
+                      row[key] = SEVERITY_MAP.get(value, value) if key == 'severity' else value
+              results.append(row)
 
-              for k, v in i.items():
-                  if k in target_headers:
-                      if k == 'severity': v = normalize_severity(v)
-                      tmp[k] = v
-
-              results.append(tmp)
-
-          if len(results) > 24:
-              total_issues = len(results)
-              results = results[:25]
-              nombre = f'Issues Impacting {agentid} (Limited to 25, {total_issues - 25} Hidden)'
+          if len(results) > MAX_DISPLAY:
+              total = len(results)
+              results = results[:MAX_DISPLAY]
+              title = f'Issues Impacting {agentid} (Limited to {MAX_DISPLAY}, {total - MAX_DISPLAY} Hidden)'
           else:
-              nombre = f'Issues Impacting {agentid}'
-          md = tableToMarkdown(name=nombre, t=results, headers=target_headers)
+              title = f'Issues Impacting {agentid}'
+          md = tableToMarkdown(name=title, t=results, headers=TARGET_HEADERS)
 
       else: md = f'### No Related Issues Found for agentid: {agentid}'
 
@@ -76,3 +66,5 @@ dockerimage: demisto/python3:3.12.12.6922358
 runas: DBotWeakRole
 engineinfo: {}
 mainengineinfo: {}
+restrictioncenter: {}
+signature: ""
