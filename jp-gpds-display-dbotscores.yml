@@ -1,0 +1,135 @@
+commonfields:
+  id: jp-gpds-display-dbotscores
+  version: -1
+
+vcShouldKeepItemLegacyProdMachine: false
+
+name: jp-gpds-display-dbotscores
+script: |-
+  register_module_line('jp-gpds-display-dbotscores', 'start', __line__())
+
+  import demistomock as demisto
+  from CommonServerPython import *
+  from CommonServerUserPython import *
+
+
+  SCORE_LABELS = {
+      0: 'Unknown',
+      1: 'Good',
+      2: 'Suspicious',
+      3: 'Malicious',
+  }
+
+  NO_DATA_MSG = '### DBotScore\nNo DBotScore data found in context.'
+
+
+  def safe_int(value, default=0):
+      """Convert value to int, returning default on failure."""
+      try:
+          return int(value)
+      except (ValueError, TypeError):
+          return default
+
+
+  def normalize_to_list(data):
+      """Wrap a single dict in a list; pass through if already a list."""
+      if isinstance(data, dict):
+          return [data]
+      if isinstance(data, list):
+          return data
+      return []
+
+
+  def get_score_label(score):
+      """Convert integer score to human-readable label."""
+      return SCORE_LABELS.get(safe_int(score), 'Unknown')
+
+
+  def sort_entries(entries):
+      """Sort entries: indicators with highest max-score first, then by indicator,
+      then by score descending within each indicator group."""
+      max_score_per_indicator = {}
+      for entry in entries:
+          indicator = entry.get('Indicator', '')
+          score = safe_int(entry.get('Score', 0))
+          if indicator not in max_score_per_indicator or score > max_score_per_indicator[indicator]:
+              max_score_per_indicator[indicator] = score
+
+      return sorted(entries, key=lambda e: (
+          -max_score_per_indicator.get(e.get('Indicator', ''), 0),
+          e.get('Indicator', ''),
+          -safe_int(e.get('Score', 0)),
+      ))
+
+
+  def build_markdown_table(entries):
+      """Build a markdown table from sorted DBotScore entries."""
+      rows = []
+      for entry in entries:
+          rows.append({
+              'Indicator': entry.get('Indicator', ''),
+              'Type': entry.get('Type', ''),
+              'Vendor': entry.get('Vendor', ''),
+              'Score': get_score_label(entry.get('Score', 0)),
+              'Reliability': entry.get('Reliability', ''),
+          })
+      return tableToMarkdown(
+          'DBotScore',
+          rows,
+          headers=['Indicator', 'Type', 'Vendor', 'Score', 'Reliability'],
+      )
+
+
+  def main():
+      try:
+          dbot_scores = demisto.context().get('DBotScore')
+
+          if dbot_scores is None:
+              return_results(CommandResults(
+                  readable_output=NO_DATA_MSG,
+              ))
+              return
+
+          entries = [e for e in normalize_to_list(dbot_scores) if isinstance(e, dict)]
+          if not entries:
+              return_results(CommandResults(
+                  readable_output=NO_DATA_MSG,
+              ))
+              return
+
+          sorted_entries = sort_entries(entries)
+          markdown = build_markdown_table(sorted_entries)
+
+          return_results(CommandResults(
+              readable_output=markdown,
+          ))
+
+      except Exception as e:
+          return_error(f'Failed to display DBotScore. Error: {str(e)}')
+
+
+  if __name__ in ('__main__', '__builtin__', 'builtins'):
+      main()
+
+  register_module_line('jp-gpds-display-dbotscores', 'end', __line__())
+
+type: python
+tags:
+  - dynamic-section
+comment: |
+  General Purpose Dynamic Section that retrieves DBotScore data from the
+  incident context and displays it as a sorted markdown table. Scores are
+  sorted with the highest-scored indicators first, then alphabetically by
+  indicator value, then by descending score within each indicator group.
+  Numeric scores are converted to human-readable labels (Unknown, Good,
+  Suspicious, Malicious).
+enabled: true
+
+scripttarget: 0
+subtype: python3
+pswd: ""
+runonce: false
+dockerimage: demisto/python3:3.12.12.6947692
+runas: DBotWeakRole
+engineinfo: {}
+mainengineinfo: {}
